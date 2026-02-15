@@ -82,11 +82,10 @@ Libraries:
 sqlite3 – built-in module for database operations
 datetime – for handling dates (today’s date, formatting)
 os – to check if the database file exists
-typing – for type hints (improves code readability and maintainability)
+typing – for type hints
 
 # Useful Websites
 
-{Make a list of websites that you found helpful in this project}
 
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
 - [Python sqlite3 Module Documentation](https://docs.python.org/3/library/sqlite3.html)
@@ -96,9 +95,8 @@ typing – for type hints (improves code readability and maintainability)
 
 # Future Work
 
-{Make a list of things that you need to fix, improve, and add in the future.}
 
-- Graphical User Interface (GUI) – Replace the console menu with a desktop (Tkinter/PyQt) or web (Flask) interface for easier data entry and visualization.
+- Graphical User Interface (GUI) – Replace the console menu with a desktop interface for easier data entry and visualization.
 - Multiple user support – Add user authentication so the application can serve multiple individuals, each with their own categories and expenses.
 - Cloud sync – Store the database in the cloud (e.g., using SQLite on cloud storage or migrating to a client‑server DB like PostgreSQL) for access across devices.
 - Recurring expenses – Allow users to define recurring transactions that are automatically added each month.
