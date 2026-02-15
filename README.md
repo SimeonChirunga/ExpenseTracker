@@ -2,26 +2,32 @@
 
 This project is a console-based Expense Tracker built with Python and SQLite. It demonstrates how a relational database can be integrated into a practical software application to manage personal finances efficiently. The system allows users to perform full CRUD operations (Create, Read, Update, Delete) on expense records, categorize them, set budget limits, and generate spending summaries – all while maintaining data integrity through foreign key constraints and SQL transactions.
 
-Purpose
+Purpose: 
+
 As a software engineer, I developed this application to deepen my understanding of relational database design and SQL in a real-world context. By building a complete data-driven tool, I explored concepts such as:
 
-Database schema design (normalization, relationships)
-Parameterized queries to prevent SQL injection
-Error handling and transaction rollbacks
-Aggregation queries for reporting (GROUP BY, JOIN, CASE expressions)
-Integration of Python with SQLite using the built-in sqlite3 module
+- Database schema design (normalization, relationships)
+
+- Parameterized queries to prevent SQL injection
+
+- Error handling and transaction rollbacks
+
+- Aggregation queries for reporting (GROUP BY, JOIN, CASE expressions)
+
+- Integration of Python with SQLite using the built-in sqlite3 module
 
 How to Use
 Run the script – it will automatically create the database file (expenses.db) and populate default categories if none exist.
+
 A menu with numbered options will appear. Enter the corresponding number to:
-Add a new expense (amount, category, optional description, date)
-View all expenses in a formatted table
-Update or delete existing expenses
-Search by category (ID or name), date range, or description keyword
-View spending summary per category (with budget tracking and percentage used)
-Generate a monthly report
-Export the full report to a text file
-Follow the on-screen prompts; the program validates inputs and provides feedback.
+- Add a new expense (amount, category, optional description, date)
+- View all expenses in a formatted table
+- Update or delete existing expenses
+- Search by category (ID or name), date range, or description keyword
+- View spending summary per category (with budget tracking and percentage used)
+- Generate a monthly report
+- Export the full report to a text file.
+
 
 
 [Software Demo Video](https://youtu.be/g0ocP0R72r4)
@@ -49,6 +55,7 @@ date	        DATE	        Date of the expense (YYYY-MM-DD)
 created_at	    TIMESTAMP	    Auto-populated creation timestamp
 
 Relationships:
+
 A one-to-many relationship exists between categories and expenses: one category can have many expenses, but each expense belongs to exactly one category.
 
 The foreign key category_id enforces referential integrity with ON DELETE CASCADE – deleting a category automatically removes all its associated expenses.
