@@ -1,82 +1,114 @@
-import sqlite3
-import datetime
-import os
-from typing import Optional, List, Tuple
+# Importing needed modules
+import sqlite3      # For SQLite database operations
+import datetime     # For handling dates
+import os           # For file/directory operations (checking if database exists)
+from typing import Optional, List, Tuple   # Type hints for better code clarity
 
+# ============================================
+# ExpenseTracker Class
+# ============================================
 class ExpenseTracker:
+    """
+    A class that manages all expense tracking operations.
+    It connects to an SQLite database and provides methods for CRUD,
+    filtering, reporting, and exporting.
+    """
+    
     def __init__(self, db_path: str = 'expenses.db'):
-        """Initialize the Expense Tracker with database connection."""
-        self.db_path = db_path
-        self.conn = None
-        self.cursor = None
-        self.connect_db()
-        
+        """
+        Constructor: Initializes the tracker with a database path.
+        :param db_path: Path to the SQLite database file.
+        """
+        self.db_path = db_path          # Store database file path
+        self.conn = None                # Database connection object (initially None)
+        self.cursor = None              # Database cursor (initially None)
+        self.connect_db()               # Immediately establish a connection
+
     def connect_db(self):
-        """Establish database connection."""
+        """
+        Establish a connection to the SQLite database.
+        Sets row_factory to sqlite3.Row for dictionary-like access,
+        creates a cursor, and enables foreign key constraints.
+        """
         try:
+            # Connect to the database file (creates file if it doesn't exist)
             self.conn = sqlite3.connect(self.db_path)
-            # Set row factory FIRST for dictionary-like access
+            # Set row factory FIRST: rows can be accessed by column name (like a dict)
             self.conn.row_factory = sqlite3.Row
+            # Create a cursor object to execute SQL commands
             self.cursor = self.conn.cursor()
-            # Enable foreign key constraints
+            # Enable foreign key constraints for this connection
             self.cursor.execute("PRAGMA foreign_keys = ON")
         except sqlite3.Error as e:
-            print(f"❌ Database connection error: {e}")
+            # If connection fails, print error and re-raise to stop execution
+            print(f" Database connection error: {e}")
             raise
-    
+
     def close_db(self):
-        """Close database connection."""
+        """
+        Close the database connection if it's open.
+        Called when done using the tracker.
+        """
         if self.conn:
             self.conn.close()
-    
+
     # ========== CORE CRUD OPERATIONS ==========
     
     def add_expense(self, amount: float, category_id: int, 
                    description: str = "", date: str = None) -> bool:
         """
         Insert a new expense record into the database.
-        Demonstrates SQL INSERT operation with parameterized query.
+        :param amount: Expense amount (must be > 0)
+        :param category_id: ID of the category this expense belongs to
+        :param description: Optional description text
+        :param date: Date in 'YYYY-MM-DD' format. If None, use today.
+        :return: True if successful, False otherwise.
         """
+        # Validate that amount is positive
         if amount <= 0:
-            print("❌ Amount must be greater than 0")
+            print(" Amount must be greater than 0")
             return False
         
+        # If no date provided, use today's date in ISO format
         if not date:
             date = datetime.date.today().isoformat()
         
         try:
-            # Validate category exists
+            # First, verify that the category exists in the categories table
             self.cursor.execute("SELECT id FROM categories WHERE id = ?", (category_id,))
             if not self.cursor.fetchone():
-                print(f"❌ Category ID {category_id} does not exist")
+                print(f" Category ID {category_id} does not exist")
                 return False
             
-            # Parameterized query to prevent SQL injection
+            # Use a parameterized query to insert the new expense safely (prevents SQL injection)
             self.cursor.execute('''
                 INSERT INTO expenses (amount, category_id, description, date)
                 VALUES (?, ?, ?, ?)
             ''', (amount, category_id, description, date))
             
+            # Commit the transaction to make changes permanent
             self.conn.commit()
-            print(f"✅ Expense of ${amount:.2f} added successfully!")
+            print(f"Expense of ${amount:.2f} added successfully!")
             
-            # Check budget limit
+            # After adding, check if this category's budget is exceeded or nearly exceeded
             self.check_budget_limit(category_id)
             
             return True
             
         except sqlite3.Error as e:
-            print(f"❌ Error adding expense: {e}")
+            # If any database error occurs, print it and rollback any changes
+            print(f" Error adding expense: {e}")
             self.conn.rollback()
             return False
     
     def view_all_expenses(self, limit: int = 50) -> List[sqlite3.Row]:
         """
-        Retrieve all expenses with category names.
-        Demonstrates SQL SELECT with JOIN.
+        Retrieve all expenses with category names, ordered by date (most recent first).
+        :param limit: Maximum number of records to return.
+        :return: List of sqlite3.Row objects (each row acts like a dictionary).
         """
         try:
-            # JOIN to get category names
+            # Perform a JOIN to get the category name from the categories table
             self.cursor.execute('''
                 SELECT e.id, e.amount, c.name as category, 
                        e.description, e.date, e.created_at
@@ -86,11 +118,12 @@ class ExpenseTracker:
                 LIMIT ?
             ''', (limit,))
             
+            # Fetch all rows and return them as a list
             expenses = self.cursor.fetchall()
             return expenses
             
         except sqlite3.Error as e:
-            print(f"❌ Error retrieving expenses: {e}")
+            print(f"Error retrieving expenses: {e}")
             return []
     
     def update_expense(self, expense_id: int, amount: float = None,
@@ -98,25 +131,32 @@ class ExpenseTracker:
                       date: str = None) -> bool:
         """
         Modify an existing expense record.
-        Demonstrates SQL UPDATE operation.
+        Only fields that are provided (not None) will be updated.
+        :param expense_id: ID of the expense to update.
+        :param amount: New amount (if provided).
+        :param category_id: New category ID (if provided).
+        :param description: New description (if provided).
+        :param date: New date (if provided).
+        :return: True if successful, False otherwise.
         """
         try:
-            # Build dynamic UPDATE query based on provided parameters
+            # Build a dynamic list of SET clauses and corresponding parameter values
             updates = []
             params = []
             
             if amount is not None:
+                # Validate amount
                 if amount <= 0:
-                    print("❌ Amount must be greater than 0")
+                    print("Amount must be greater than 0")
                     return False
                 updates.append("amount = ?")
                 params.append(amount)
             
             if category_id is not None:
-                # Validate category exists
+                # Validate that the new category exists
                 self.cursor.execute("SELECT id FROM categories WHERE id = ?", (category_id,))
                 if not self.cursor.fetchone():
-                    print(f"❌ Category ID {category_id} does not exist")
+                    print(f" Category ID {category_id} does not exist")
                     return False
                 updates.append("category_id = ?")
                 params.append(category_id)
@@ -129,21 +169,24 @@ class ExpenseTracker:
                 updates.append("date = ?")
                 params.append(date)
             
+            # If no fields were provided, nothing to update
             if not updates:
-                print("❌ No fields to update")
+                print(" No fields to update")
                 return False
             
-            # Add expense_id to parameters
+            # Add the expense_id as the last parameter for the WHERE clause
             params.append(expense_id)
             
-            # Build and execute the UPDATE query
+            # Build the full UPDATE query with the dynamic SET clauses
             query = f"UPDATE expenses SET {', '.join(updates)} WHERE id = ?"
             self.cursor.execute(query, params)
             
+            # rowcount indicates how many rows were affected. If 0, the expense ID didn't exist.
             if self.cursor.rowcount == 0:
-                print(f"❌ No expense found with ID {expense_id}")
+                print(f" No expense found with ID {expense_id}")
                 return False
             
+            # Commit the changes
             self.conn.commit()
             print(f"✅ Expense ID {expense_id} updated successfully!")
             return True
@@ -156,21 +199,25 @@ class ExpenseTracker:
     def delete_expense(self, expense_id: int) -> bool:
         """
         Remove an expense record from the database.
-        Demonstrates SQL DELETE operation.
+        :param expense_id: ID of the expense to delete.
+        :return: True if successful, False otherwise.
         """
         try:
+            # Execute DELETE statement with parameterized ID
             self.cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
             
+            # Check if any row was actually deleted
             if self.cursor.rowcount == 0:
-                print(f"❌ No expense found with ID {expense_id}")
+                print(f" No expense found with ID {expense_id}")
                 return False
             
+            # Commit the deletion
             self.conn.commit()
-            print(f"✅ Expense ID {expense_id} deleted successfully!")
+            print(f" Expense ID {expense_id} deleted successfully!")
             return True
             
         except sqlite3.Error as e:
-            print(f"❌ Error deleting expense: {e}")
+            print(f" Error deleting expense: {e}")
             self.conn.rollback()
             return False
     
@@ -179,22 +226,27 @@ class ExpenseTracker:
     def search_by_category(self, category_id: int = None, 
                           category_name: str = None) -> List[sqlite3.Row]:
         """
-        Query expenses by category.
-        Demonstrates filtering with WHERE clause.
+        Search for expenses by category ID or category name.
+        :param category_id: Direct category ID.
+        :param category_name: Category name (partial match, case-insensitive).
+        :return: List of matching expenses.
         """
         try:
+            # If category_name is provided, resolve it to an ID first
             if category_name:
-                # Get category ID from name
+                # Use LIKE for partial, case-insensitive matching
                 self.cursor.execute(
                     "SELECT id FROM categories WHERE name LIKE ?", 
                     (f"%{category_name}%",)
                 )
                 result = self.cursor.fetchone()
                 if not result:
-                    print(f"❌ No category found with name '{category_name}'")
+                    print(f" No category found with name '{category_name}'")
                     return []
+                # Get the ID from the result row (using dictionary-like access)
                 category_id = result['id']
             
+            # Now search expenses by that category ID
             self.cursor.execute('''
                 SELECT e.id, e.amount, c.name as category, 
                        e.description, e.date
@@ -207,15 +259,18 @@ class ExpenseTracker:
             return self.cursor.fetchall()
             
         except sqlite3.Error as e:
-            print(f"❌ Error searching by category: {e}")
+            print(f" Error searching by category: {e}")
             return []
     
     def filter_by_date_range(self, start_date: str, end_date: str) -> List[sqlite3.Row]:
         """
-        Retrieve expenses within a date range.
-        Demonstrates date filtering and BETWEEN operator.
+        Retrieve expenses that occurred between start_date and end_date (inclusive).
+        :param start_date: Start date in 'YYYY-MM-DD' format.
+        :param end_date: End date in 'YYYY-MM-DD' format.
+        :return: List of matching expenses.
         """
         try:
+            # Use BETWEEN operator for inclusive range
             self.cursor.execute('''
                 SELECT e.id, e.amount, c.name as category, 
                        e.description, e.date
@@ -228,15 +283,17 @@ class ExpenseTracker:
             return self.cursor.fetchall()
             
         except sqlite3.Error as e:
-            print(f"❌ Error filtering by date: {e}")
+            print(f" Error filtering by date: {e}")
             return []
     
     def search_by_description(self, keyword: str) -> List[sqlite3.Row]:
         """
-        Search expenses by description keyword.
-        Demonstrates text search with LIKE operator.
+        Search expenses whose description contains the given keyword.
+        :param keyword: Search term (case-insensitive partial match).
+        :return: List of matching expenses.
         """
         try:
+            # Use LIKE with wildcards around the keyword
             self.cursor.execute('''
                 SELECT e.id, e.amount, c.name as category, 
                        e.description, e.date
@@ -249,17 +306,21 @@ class ExpenseTracker:
             return self.cursor.fetchall()
             
         except sqlite3.Error as e:
-            print(f"❌ Error searching by description: {e}")
+            print(f" Error searching by description: {e}")
             return []
     
     # ========== DATA ANALYSIS & REPORTING ==========
     
     def get_spending_summary(self) -> List[sqlite3.Row]:
         """
-        Generate spending summary by category.
-        Demonstrates GROUP BY and aggregate functions.
+        Generate a spending summary per category, including transaction count,
+        total spent, budget limit, remaining budget, and percentage used.
+        :return: List of summary rows.
         """
         try:
+            # Use GROUP BY to aggregate per category
+            # LEFT JOIN ensures categories with no expenses are still shown (with zeros)
+            # CASE expression calculates percentage only if budget_limit > 0
             self.cursor.execute('''
                 SELECT 
                     c.name as category,
@@ -281,20 +342,24 @@ class ExpenseTracker:
             return self.cursor.fetchall()
             
         except sqlite3.Error as e:
-            print(f"❌ Error generating spending summary: {e}")
+            print(f" Error generating spending summary: {e}")
             return []
     
     def get_monthly_spending(self, year: int = None, month: int = None) -> List[sqlite3.Row]:
         """
-        Generate monthly spending report.
-        Demonstrates date functions and grouping.
+        Generate a monthly spending report for a specific year and month.
+        :param year: Year (e.g., 2026). If None, use current year.
+        :param month: Month (1-12). If None, use current month.
+        :return: List of category totals for that month.
         """
         try:
+            # Default to current year/month if not provided
             if year is None:
                 year = datetime.date.today().year
             if month is None:
                 month = datetime.date.today().month
             
+            # Use strftime to extract year and month from the date column
             self.cursor.execute('''
                 SELECT 
                     c.name as category,
@@ -306,32 +371,40 @@ class ExpenseTracker:
                   AND strftime('%m', e.date) = ?
                 GROUP BY c.id, c.name
                 ORDER BY monthly_total DESC
-            ''', (str(year), f"{month:02d}"))
+            ''', (str(year), f"{month:02d}"))  # month formatted with leading zero
             
             return self.cursor.fetchall()
             
         except sqlite3.Error as e:
-            print(f"❌ Error generating monthly report: {e}")
+            print(f" Error generating monthly report: {e}")
             return []
     
     def get_total_spending(self) -> float:
-        """Calculate total spending across all categories."""
+        """
+        Calculate the total amount spent across all expenses.
+        :return: Total sum as float, or 0.0 if no expenses.
+        """
         try:
             self.cursor.execute('SELECT SUM(amount) as total FROM expenses')
             result = self.cursor.fetchone()
-            # Access result safely
+            # result is a sqlite3.Row; we can access by column name
             if result and result['total'] is not None:
                 return float(result['total'])
             return 0.0
         except sqlite3.Error as e:
-            print(f"❌ Error calculating total spending: {e}")
+            print(f" Error calculating total spending: {e}")
             return 0.0
     
     # ========== HELPER FUNCTIONS ==========
     
     def check_budget_limit(self, category_id: int):
-        """Check if spending exceeds budget limit for a category."""
+        """
+        Check if total spending for a given category exceeds or nears its budget limit.
+        Prints warnings if over budget or over 90% of budget.
+        :param category_id: The category to check.
+        """
         try:
+            # Query to get category name, budget limit, and total spent
             self.cursor.execute('''
                 SELECT 
                     c.name,
@@ -344,20 +417,25 @@ class ExpenseTracker:
             ''', (category_id,))
             
             result = self.cursor.fetchone()
+            # Only check if budget_limit is greater than 0 (i.e., a budget is set)
             if result and result['budget_limit'] > 0:
                 spent = result['spent'] or 0
                 if spent > result['budget_limit']:
-                    print(f"⚠️  Warning: You've exceeded the budget for {result['name']}!")
+                    print(f"  Warning: You've exceeded the budget for {result['name']}!")
                     print(f"   Budget: ${result['budget_limit']:.2f}, Spent: ${spent:.2f}")
                 elif spent > result['budget_limit'] * 0.9:
-                    print(f"⚠️  Warning: You're close to exceeding the budget for {result['name']}")
+                    print(f"  Warning: You're close to exceeding the budget for {result['name']}")
                     
         except sqlite3.Error as e:
-            print(f"❌ Error checking budget: {e}")
+            print(f" Error checking budget: {e}")
     
     def list_categories(self) -> List[sqlite3.Row]:
-        """Display all available categories."""
+        """
+        Retrieve all categories along with total spent in each.
+        :return: List of category rows.
+        """
         try:
+            # Use LEFT JOIN to include categories with no expenses
             self.cursor.execute('''
                 SELECT c.id, c.name, c.budget_limit,
                        COALESCE(SUM(e.amount), 0) as total_spent
@@ -368,15 +446,18 @@ class ExpenseTracker:
             ''')
             return self.cursor.fetchall()
         except sqlite3.Error as e:
-            print(f"❌ Error listing categories: {e}")
+            print(f" Error listing categories: {e}")
             return []
     
     def export_to_file(self, filename: str = "expense_report.txt"):
         """
-        Export expense data and summary to a text file.
-        Demonstrates file I/O integration.
+        Export a formatted expense report to a text file.
+        Includes total spending, category summary, and recent expenses.
+        :param filename: Name of the output file.
+        :return: True if successful, False otherwise.
         """
         try:
+            # Open the file in write mode (will create/overwrite)
             with open(filename, 'w') as f:
                 f.write("=" * 50 + "\n")
                 f.write("EXPENSE TRACKER REPORT\n")
@@ -387,12 +468,13 @@ class ExpenseTracker:
                 total = self.get_total_spending()
                 f.write(f"TOTAL SPENDING: ${total:.2f}\n\n")
                 
-                # Spending Summary
+                # Spending Summary by Category
                 f.write("SPENDING SUMMARY BY CATEGORY:\n")
                 f.write("-" * 50 + "\n")
                 summary = self.get_spending_summary()
                 for row in summary:
-                    # Access row data safely
+                    # Safely access each column with fallback to default if missing
+                    # This handles potential variations in row structure
                     category = row['category'] if 'category' in row.keys() else 'Unknown'
                     transaction_count = row['transaction_count'] if 'transaction_count' in row.keys() else 0
                     total_spent = row['total_spent'] if 'total_spent' in row.keys() else 0
@@ -409,12 +491,12 @@ class ExpenseTracker:
                         f.write(f"  Percent Used: {percent_used or 0}%\n")
                     f.write("\n")
                 
-                # Recent Expenses
+                # Recent Expenses (last 20)
                 f.write("\nRECENT EXPENSES (last 20):\n")
                 f.write("-" * 50 + "\n")
                 expenses = self.view_all_expenses(20)
                 for exp in expenses:
-                    # Access row data safely
+                    # Safely access expense fields
                     exp_id = exp['id'] if 'id' in exp.keys() else 'N/A'
                     exp_date = exp['date'] if 'date' in exp.keys() else 'N/A'
                     exp_category = exp['category'] if 'category' in exp.keys() else 'Unknown'
@@ -427,16 +509,19 @@ class ExpenseTracker:
                         f.write(f"  Description: {exp_description}\n")
                     f.write("\n")
             
-            print(f"✅ Report exported to '{filename}'")
+            print(f" Report exported to '{filename}'")
             return True
             
         except Exception as e:
-            print(f"❌ Error exporting to file: {e}")
+            print(f" Error exporting to file: {e}")
             return False
 
 
+# ============================================
+# Menu Display Function
+# ============================================
 def display_menu():
-    """Display the main menu."""
+    """Display the main menu options for the user."""
     print("\n" + "=" * 50)
     print("EXPENSE TRACKER - SQL RELATIONAL DATABASE SYSTEM")
     print("=" * 50)
@@ -456,22 +541,34 @@ def display_menu():
     print("=" * 50)
 
 
+# ============================================
+# Helper Functions for Displaying Data Safely
+# ============================================
 def safe_get(row, key, default=None):
-    """Safely get a value from a sqlite3.Row or tuple."""
+    """
+    Safely get a value from a sqlite3.Row or tuple.
+    Tries dictionary-style access first; if that fails, returns default.
+    This is a fallback in case the row is not a Row object.
+    """
     try:
-        # Try dictionary-style access first
+        # Check if it's a Row and has the key
         if hasattr(row, '__getitem__') and isinstance(row, sqlite3.Row):
             if key in row.keys():
                 return row[key]
     except:
         pass
     
-    # Fall back to default
+    # If anything fails, return default
     return default
 
 
 def display_expenses(expenses, title="EXPENSES"):
-    """Display a list of expenses in formatted table."""
+    """
+    Display a list of expenses in a formatted table.
+    Handles both sqlite3.Row objects and plain tuples.
+    :param expenses: List of expense records.
+    :param title: Title to print above the table.
+    """
     if not expenses:
         print(f"No {title.lower()} found.")
         return
@@ -483,7 +580,7 @@ def display_expenses(expenses, title="EXPENSES"):
     
     total = 0
     for exp in expenses:
-        # Safely extract values
+        # Try to extract values assuming it's a dictionary-like row
         try:
             exp_id = exp['id']
             exp_date = exp['date']
@@ -491,15 +588,17 @@ def display_expenses(expenses, title="EXPENSES"):
             exp_amount = exp['amount']
             exp_description = exp['description'] if exp['description'] is not None else ''
         except (KeyError, TypeError):
-            # If dictionary access fails, try tuple access
+            # If dictionary access fails, fall back to tuple indexing
             if isinstance(exp, (tuple, list)):
+                # Assume the order: id, amount, category, description, date (or similar)
+                # This is brittle but used as last resort
                 exp_id = exp[0] if len(exp) > 0 else 'N/A'
-                exp_date = exp[4] if len(exp) > 4 else 'N/A'  # date is typically 4th column
-                exp_category = exp[2] if len(exp) > 2 else 'Unknown'  # category is 3rd column
-                exp_amount = exp[1] if len(exp) > 1 else 0  # amount is 2nd column
+                exp_date = exp[4] if len(exp) > 4 else 'N/A'  # date is typically 5th element
+                exp_category = exp[2] if len(exp) > 2 else 'Unknown'  # category name is 3rd
+                exp_amount = exp[1] if len(exp) > 1 else 0  # amount is 2nd
                 exp_description = exp[3] if len(exp) > 3 and exp[3] is not None else ''
             else:
-                # Fallback
+                # If all else fails, assign default values
                 exp_id = 'N/A'
                 exp_date = 'N/A'
                 exp_category = 'Unknown'
@@ -515,15 +614,18 @@ def display_expenses(expenses, title="EXPENSES"):
     print()
 
 
+# ============================================
+# Main Program Entry Point
+# ============================================
 def main():
-    """Main application loop."""
-    print("🚀 Initializing Expense Tracker System...")
+    """Main application loop: initializes database and handles user interaction."""
+    print("Initializing Expense Tracker System...")
     
-    # Check if database exists, run setup if not
+    # Check if the database file already exists
     if not os.path.exists('expenses.db'):
         print("Database not found. Creating database with default categories...")
         try:
-            # Create database and tables
+            # Create a temporary connection to set up tables
             conn = sqlite3.connect('expenses.db')
             cursor = conn.cursor()
             
@@ -537,7 +639,7 @@ def main():
                 )
             ''')
             
-            # Create expenses table
+            # Create expenses table with foreign key referencing categories
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS expenses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -550,7 +652,7 @@ def main():
                 )
             ''')
             
-            # Insert default categories
+            # Insert some default categories with sample budget limits
             default_categories = [
                 ('Food', 500.00),
                 ('Transportation', 200.00),
@@ -562,6 +664,7 @@ def main():
                 ('Miscellaneous', 50.00)
             ]
             
+            # Use executemany to insert all rows, IGNORE duplicates if any
             cursor.executemany(
                 'INSERT OR IGNORE INTO categories (name, budget_limit) VALUES (?, ?)',
                 default_categories
@@ -569,37 +672,40 @@ def main():
             
             conn.commit()
             conn.close()
-            print("✅ Database created successfully with default categories!")
+            print(" Database created successfully with default categories!")
         except Exception as e:
-            print(f"❌ Error creating database: {e}")
-            return
+            print(f"Error creating database: {e}")
+            return  # Exit if database creation fails
     
-    # Initialize tracker
+    # Initialize the ExpenseTracker object (this will connect to the database)
     tracker = ExpenseTracker()
     
+    # Main menu loop
     while True:
         display_menu()
         
         try:
             choice = input("\nEnter your choice (0-12): ").strip()
             
+            # Exit
             if choice == "0":
-                print("👋 Thank you for using Expense Tracker!")
+                print("Thank you for using Expense Tracker!")
                 break
             
+            # Option 1: Add New Expense
             elif choice == "1":
-                # Add New Expense
-                print("\n➕ ADD NEW EXPENSE")
+                print("\n ADD NEW EXPENSE")
                 print("Available Categories:")
                 categories = tracker.list_categories()
-                # Safely display categories
+                # Display each category with its ID, name, and budget
                 for cat in categories:
+                    # Safely access category data
                     try:
                         cat_id = cat['id']
                         name = cat['name']
                         budget = cat['budget_limit']
                     except (KeyError, TypeError):
-                        # Fallback to tuple access
+                        # Fallback to tuple indexing if needed
                         if isinstance(cat, (tuple, list)):
                             cat_id = cat[0] if len(cat) > 0 else 0
                             name = cat[1] if len(cat) > 1 else "Unknown"
@@ -610,6 +716,7 @@ def main():
                             budget = 0.0
                     print(f"  {cat_id}. {name} (Budget: ${budget:.2f})")
                 
+                # Get user input
                 try:
                     amount = float(input("Enter amount: $"))
                     category_id = int(input("Enter category ID: "))
@@ -622,23 +729,23 @@ def main():
                     tracker.add_expense(amount, category_id, description, date)
                     
                 except ValueError:
-                    print("❌ Invalid input. Please enter valid numbers.")
+                    print(" Invalid input. Please enter valid numbers.")
             
+            # Option 2: View All Expenses
             elif choice == "2":
-                # View All Expenses
                 expenses = tracker.view_all_expenses()
                 display_expenses(expenses, "ALL EXPENSES")
             
+            # Option 3: Update Expense
             elif choice == "3":
-                # Update Expense
-                print("\n✏️ UPDATE EXPENSE")
+                print("\n UPDATE EXPENSE")
                 try:
                     expense_id = int(input("Enter expense ID to update: "))
                 except ValueError:
-                    print("❌ Please enter a valid expense ID (number)")
+                    print(" Please enter a valid expense ID (number)")
                     continue
                 
-                # Show current expense details
+                # Retrieve current details to show the user
                 tracker.cursor.execute('''
                     SELECT e.*, c.name as category_name 
                     FROM expenses e 
@@ -648,7 +755,7 @@ def main():
                 expense = tracker.cursor.fetchone()
                 
                 if not expense:
-                    print(f"❌ No expense found with ID {expense_id}")
+                    print(f" No expense found with ID {expense_id}")
                     continue
                 
                 print(f"\nCurrent details:")
@@ -658,9 +765,10 @@ def main():
                     print(f"  Description: {expense['description']}")
                     print(f"  Date: {expense['date']}")
                 except KeyError:
-                    print("❌ Error reading expense details")
+                    print(" Error reading expense details")
                     continue
                 
+                # Ask for new values; leave blank to keep current
                 print("\nEnter new values (leave blank to keep current):")
                 try:
                     amount_str = input("New amount: $")
@@ -680,29 +788,29 @@ def main():
                     tracker.update_expense(expense_id, amount, category_id, description, date)
                     
                 except ValueError:
-                    print("❌ Invalid input format.")
+                    print(" Invalid input format.")
             
+            # Option 4: Delete Expense
             elif choice == "4":
-                # Delete Expense
-                print("\n🗑️ DELETE EXPENSE")
+                print("\n DELETE EXPENSE")
                 try:
                     expense_id = int(input("Enter expense ID to delete: "))
                 except ValueError:
-                    print("❌ Please enter a valid expense ID (number)")
+                    print(" Please enter a valid expense ID (number)")
                     continue
                 
-                # Confirm deletion
+                # Confirm deletion with user
                 confirm = input(f"Are you sure you want to delete expense {expense_id}? (yes/no): ")
                 if confirm.lower() == 'yes':
                     tracker.delete_expense(expense_id)
                 else:
                     print("Deletion cancelled.")
             
+            # Option 5: Search by Category
             elif choice == "5":
-                # Search by Category
-                print("\n🔍 SEARCH BY CATEGORY")
+                print("\n SEARCH BY CATEGORY")
                 categories = tracker.list_categories()
-                # Safely display categories
+                # Display categories for reference
                 for cat in categories:
                     try:
                         cat_id = cat['id']
@@ -716,6 +824,7 @@ def main():
                             name = "Unknown"
                     print(f"  {cat_id}. {name}")
                 
+                # Ask user whether to search by ID or name
                 search_by = input("Search by (1) ID or (2) Name? Enter 1 or 2: ")
                 
                 if search_by == "1":
@@ -723,37 +832,37 @@ def main():
                         category_id = int(input("Enter category ID: "))
                         expenses = tracker.search_by_category(category_id=category_id)
                     except ValueError:
-                        print("❌ Please enter a valid category ID (number)")
+                        print(" Please enter a valid category ID (number)")
                         continue
                 elif search_by == "2":
                     category_name = input("Enter category name: ")
                     expenses = tracker.search_by_category(category_name=category_name)
                 else:
-                    print("❌ Invalid choice")
+                    print(" Invalid choice")
                     continue
                 
                 display_expenses(expenses, f"EXPENSES IN CATEGORY")
             
+            # Option 6: Filter by Date Range
             elif choice == "6":
-                # Filter by Date Range
-                print("\n📅 FILTER BY DATE RANGE")
+                print("\n FILTER BY DATE RANGE")
                 start_date = input("Enter start date (YYYY-MM-DD): ")
                 end_date = input("Enter end date (YYYY-MM-DD): ")
                 
                 expenses = tracker.filter_by_date_range(start_date, end_date)
                 display_expenses(expenses, f"EXPENSES FROM {start_date} TO {end_date}")
             
+            # Option 7: Search by Description
             elif choice == "7":
-                # Search by Description
-                print("\n🔍 SEARCH BY DESCRIPTION")
+                print("\n SEARCH BY DESCRIPTION")
                 keyword = input("Enter search keyword: ")
                 
                 expenses = tracker.search_by_description(keyword)
                 display_expenses(expenses, f"EXPENSES CONTAINING '{keyword}'")
             
+            # Option 8: Spending Summary
             elif choice == "8":
-                # Spending Summary
-                print("\n📊 SPENDING SUMMARY BY CATEGORY")
+                print("\n SPENDING SUMMARY BY CATEGORY")
                 summary = tracker.get_spending_summary()
                 
                 if not summary:
@@ -766,7 +875,7 @@ def main():
                 print("-" * 80)
                 
                 for row in summary:
-                    # Safely extract values
+                    # Safely extract summary values
                     try:
                         category = row['category'][:14] if row['category'] else 'Unknown'
                         transactions = row['transaction_count'] or 0
@@ -775,7 +884,7 @@ def main():
                         remaining = row['remaining_budget'] or budget
                         percent_used = row['percent_used'] or 0
                     except (KeyError, TypeError):
-                        # Fallback to tuple access
+                        # Fallback to tuple indexing if row is a tuple
                         if isinstance(row, (tuple, list)):
                             category = (row[0][:14] if row[0] else 'Unknown') if len(row) > 0 else 'Unknown'
                             transactions = row[1] if len(row) > 1 else 0
@@ -798,9 +907,9 @@ def main():
                 print("-" * 80)
                 print(f"GRAND TOTAL: ${total_spent:.2f}")
             
+            # Option 9: Monthly Report
             elif choice == "9":
-                # Monthly Report
-                print("\n📈 MONTHLY SPENDING REPORT")
+                print("\n MONTHLY SPENDING REPORT")
                 year = input("Enter year (YYYY, leave blank for current year): ")
                 month = input("Enter month (1-12, leave blank for current month): ")
                 
@@ -823,7 +932,7 @@ def main():
                     
                     total_monthly = 0
                     for row in monthly_data:
-                        # Safely extract values
+                        # Safely extract monthly data
                         try:
                             category = row['category']
                             monthly_total = row['monthly_total']
@@ -847,11 +956,11 @@ def main():
                     print(f"MONTHLY TOTAL: ${total_monthly:.2f}")
                     
                 except ValueError:
-                    print("❌ Invalid date input.")
+                    print(" Invalid date input.")
             
+            # Option 10: List Categories
             elif choice == "10":
-                # List Categories
-                print("\n📋 AVAILABLE CATEGORIES")
+                print("\n AVAILABLE CATEGORIES")
                 categories = tracker.list_categories()
                 
                 if not categories:
@@ -863,7 +972,7 @@ def main():
                 print("-" * 60)
                 
                 for cat in categories:
-                    # Safely extract values
+                    # Safely extract category data
                     try:
                         cat_id = cat['id']
                         name = cat['name']
@@ -886,36 +995,41 @@ def main():
                     print(f"{cat_id:<4} {name:<15} ${budget:<11.2f} "
                           f"${spent:<11.2f} ${remaining:<11.2f}")
             
+            # Option 11: Export to File
             elif choice == "11":
-                # Export to File
                 filename = input("Enter filename (default: expense_report.txt): ").strip()
                 if not filename:
                     filename = "expense_report.txt"
                 
                 tracker.export_to_file(filename)
             
+            # Option 12: View Total Spending
             elif choice == "12":
-                # View Total Spending
                 total = tracker.get_total_spending()
-                print(f"\n💰 TOTAL SPENDING: ${total:.2f}")
+                print(f"\n TOTAL SPENDING: ${total:.2f}")
             
             else:
-                print("❌ Invalid choice. Please enter a number between 0 and 12.")
+                print(" Invalid choice. Please enter a number between 0 and 12.")
         
+        # Handle various exceptions that may occur during user interaction
         except ValueError as e:
-            print(f"❌ Invalid input: {e}")
+            print(f" Invalid input: {e}")
         except sqlite3.Error as e:
-            print(f"❌ Database error: {e}")
+            print(f" Database error: {e}")
         except KeyboardInterrupt:
-            print("\n\n👋 Program interrupted. Goodbye!")
+            print("\n\n Program interrupted. Goodbye!")
             break
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
+            print(f" Unexpected error: {e}")
             import traceback
             traceback.print_exc()
     
-    # Cleanup
+    # Cleanup: close the database connection before exiting
     tracker.close_db()
 
+
+# ============================================
+# Script Entry Point
+# ============================================
 if __name__ == "__main__":
     main()

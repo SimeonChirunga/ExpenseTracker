@@ -1,0 +1,76 @@
+==================================================
+EXPENSE TRACKER REPORT
+Generated: 2026-02-15 15:17:49.991543
+==================================================
+
+TOTAL SPENDING: $5.00
+
+SPENDING SUMMARY BY CATEGORY:
+--------------------------------------------------
+Transportation:
+  Transactions: 1
+  Total Spent: $4.00
+  Budget Limit: $150.00
+  Remaining: $146.00
+  Percent Used: 2.67%
+
+Food & Dining:
+  Transactions: 1
+  Total Spent: $1.00
+  Budget Limit: $300.00
+  Remaining: $299.00
+  Percent Used: 0.33%
+
+Entertainment:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $100.00
+  Remaining: $100.00
+  Percent Used: 0%
+
+Shopping:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $200.00
+  Remaining: $200.00
+  Percent Used: 0%
+
+Utilities:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $250.00
+  Remaining: $250.00
+  Percent Used: 0%
+
+Healthcare:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $100.00
+  Remaining: $100.00
+  Percent Used: 0%
+
+Education:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $150.00
+  Remaining: $150.00
+  Percent Used: 0%
+
+Other:
+  Transactions: 0
+  Total Spent: $0.00
+  Budget Limit: $50.00
+  Remaining: $50.00
+  Percent Used: 0%
+
+
+RECENT EXPENSES (last 20):
+--------------------------------------------------
+[2] 2026-02-15 - Transportation
+  Amount: $4.00
+  Description: tranport to town
+
+[1] 2026-02-08 - Food & Dining
+  Amount: $1.00
+  Description: drinks
+

@@ -30,7 +30,7 @@ def setup_database():
     )
     ''')
     
-    # Insert default categories if they don't exist
+    # Insert default categories with budgets if they don't exist
     default_categories = [
         (1, 'Food & Dining', 300.00),
         (2, 'Transportation', 150.00),
