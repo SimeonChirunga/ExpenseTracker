@@ -38,21 +38,25 @@ The project uses SQLite, a lightweight, file-based relational database engine. S
 
 Two tables were designed to model the expense tracking domain:
 
-categories
-Column	        Type	        Description
-id	            INTEGER (PK)	Auto-incrementing primary key
-name	        TEXT (UNIQUE)	Category name (e.g., Food, Transportation)
-budget_limit	DECIMAL(10,2)	Monthly spending limit (0.00 means no limit)
-created_at	    TIMESTAMP	    Auto-populated creation timestamp
+## Database Schema
 
-expenses
-Column	        Type	        Description
-id	            INTEGER (PK)	Auto-incrementing primary key
-amount	        DECIMAL(10,2)	Expense amount (must be > 0)
-category_id	    INTEGER (FK)	References categories(id)
-description	    TEXT	        Optional description of the expense
-date	        DATE	        Date of the expense (YYYY-MM-DD)
-created_at	    TIMESTAMP	    Auto-populated creation timestamp
+### `categories` Table
+| Column       | Type           | Description                                      |
+|--------------|----------------|--------------------------------------------------|
+| id           | INTEGER (PK)   | Auto-incrementing primary key                    |
+| name         | TEXT (UNIQUE)  | Category name (e.g., Food, Transportation)       |
+| budget_limit | DECIMAL(10,2)  | Monthly spending limit (0.00 means no limit)     |
+| created_at   | TIMESTAMP      | Auto-populated creation timestamp                |
+
+### `expenses` Table
+| Column       | Type           | Description                                      |
+|--------------|----------------|--------------------------------------------------|
+| id           | INTEGER (PK)   | Auto-incrementing primary key                    |
+| amount       | DECIMAL(10,2)  | Expense amount (must be > 0)                     |
+| category_id  | INTEGER (FK)   | References `categories(id)`                      |
+| description  | TEXT           | Optional description of the expense              |
+| date         | DATE           | Date of the expense (YYYY-MM-DD)                 |
+| created_at   | TIMESTAMP      | Auto-populated creation timestamp                |
 
 Relationships:
 
