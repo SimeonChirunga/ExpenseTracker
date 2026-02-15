@@ -24,7 +24,7 @@ Export the full report to a text file
 Follow the on-screen prompts; the program validates inputs and provides feedback.
 
 
-[Software Demo Video](http://youtube.link.goes.here)
+[Software Demo Video](https://youtu.be/g0ocP0R72r4)
 
 # Relational Database
 
